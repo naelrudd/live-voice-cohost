@@ -55,10 +55,13 @@ bad accuracy, base ~0.78 s, small ~3.57 s but correct on XAUUSD/IHSG/kurs.
 ```bash
 git clone https://github.com/<you>/live-voice-cohost.git
 cd live-voice-cohost
-cp .env.example .env          # then edit: add a Groq key for fast STT
-
 uv sync                       # installs runtime deps
-uv run python -m jarvis.main  # serves http://127.0.0.1:8848
+
+# 1. Setup wizard (GUI or CLI)
+./setup.bat                   # opens setup window (or: python -m jarvis.setup --cli)
+
+# 2. Run
+./start.bat                   # or: uv run python -m jarvis.main
 ```
 
 Open **http://127.0.0.1:8848/control** in a browser, hold **Talk**, and speak.
