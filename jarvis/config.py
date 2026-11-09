@@ -15,6 +15,7 @@ load_dotenv(ROOT / ".env")
 # Fallbacks to standard OpenAI-compatible vars if the dedicated var is empty.
 _FALLBACK_LLM_KEY = (
     os.environ.get("JARVIS_LLM_API_KEY")
+    or os.environ.get("OPENROUTER_API_KEY")
     or os.environ.get("OPENAI_API_KEY")
     or ""
 )
@@ -24,10 +25,10 @@ _FALLBACK_TAVILY = os.environ.get("JARVIS_TAVILY_API_KEY") or os.environ.get("TA
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="JARVIS_", env_file=str(ROOT / ".env"), extra="ignore")
 
-    # LLM
-    llm_base_url: str = "http://127.0.0.1:4000/v1"
+    # LLM (OpenRouter free tier by default — no local LLM required)
+    llm_base_url: str = "https://openrouter.ai/api/v1"
     llm_api_key: str = Field(default=_FALLBACK_LLM_KEY)
-    llm_model: str = "llama-3.3-70b-versatile"
+    llm_model: str = "meta-llama/llama-3.3-70b-instruct:free"
     llm_reasoning_effort: str = "none"
     llm_temperature: float = 0.8
     llm_max_tokens: int = 220
