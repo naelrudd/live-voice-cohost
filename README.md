@@ -52,16 +52,34 @@ bad accuracy, base ~0.78 s, small ~3.57 s but correct on XAUUSD/IHSG/kurs.
 
 ## Quick start
 
+**Cara paling mudah (Windows):**
+
+1. Clone repo, lalu dobel-klik **`install.bat`** — sekali jalan: buat venv, install
+   dependency, dan langsung buka wizard konfigurasi.
+2. Wizard menyimpan ke `.env`, lalu jalankan:
+
+```bash
+cohost start                  # atau cohost.bat start / start.bat
+```
+
+**Command `cohost`** tersedia setelah install (`install.bat` atau `pip install -e .`):
+
+```bash
+cohost setup                  # wizard konfigurasi interaktif (terminal)
+cohost setup --gui            # wizard versi window
+cohost start                  # nyalakan engine (buka /control otomatis)
+cohost stop                   # matikan engine
+cohost doctor                 # cek mic, key, endpoint
+```
+
+**Manual (uv / pip):**
+
 ```bash
 git clone https://github.com/<you>/live-voice-cohost.git
 cd live-voice-cohost
-uv sync                       # installs runtime deps
-
-# 1. Setup wizard (GUI or CLI)
-./setup.bat                   # opens setup window (or: python -m jarvis.setup --cli)
-
-# 2. Run
-./start.bat                   # or: uv run python -m jarvis.main
+uv sync                       # atau: pip install -e .
+cohost setup                  # wizard konfigurasi
+cohost start
 ```
 
 Open **http://127.0.0.1:8848/control** in a browser, hold **Talk**, and speak.

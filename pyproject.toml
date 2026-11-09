@@ -23,6 +23,12 @@ local-stt = ["faster-whisper>=1.0"]
 browser = ["browser-use>=0.2"]
 dev = ["pytest>=8", "pytest-asyncio>=0.24"]
 
+[project.scripts]
+cohost = "jarvis.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["jarvis*"]
+
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]

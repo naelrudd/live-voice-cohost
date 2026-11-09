@@ -30,16 +30,16 @@ PRESETS = {
         "key_hint": "Ambil key gratis di https://console.groq.com/keys",
     },
     "2": {
-        "name": "OpenRouter (free tier, 50 req/day pool)",
+        "name": "OpenRouter (free tier)",
         "base_url": "https://openrouter.ai/api/v1",
-        "model": "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free",
+        "model": "liquid/lfm-2.5-2.6b:free",
         "key_hint": "Daftar gratis di https://openrouter.ai/keys (no credit card)",
     },
     "3": {
-        "name": "Local gateway / proxy (e.g. 9Router, vLLM, LM Studio, Ollama)",
-        "base_url": "http://127.0.0.1:20130/v1",
-        "model": "free-coding",
-        "key_hint": "Bisa kosong jika proxy lokal tidak butuh auth",
+        "name": "Local LLM (Ollama / LM Studio / vLLM)",
+        "base_url": "http://127.0.0.1:11434/v1",
+        "model": "qwen2.5:7b",
+        "key_hint": "Bisa kosong jika server lokal tidak butuh auth",
     },
     "4": {
         "name": "Custom OpenAI-compatible endpoint",
@@ -113,7 +113,7 @@ def test_llm_connection(base_url: str, api_key: str) -> tuple[bool, str]:
     if not base_url:
         return False, "Base URL kosong"
     url = base_url.rstrip("/") + "/models"
-    req = urllib.request.Request(url)
+    req = urllib.request.Request(url, headers={"User-Agent": "live-voice-cohost/0.1"})
     if api_key:
         req.add_header("Authorization", f"Bearer {api_key}")
     try:
@@ -133,7 +133,7 @@ def test_groq_key(api_key: str) -> tuple[bool, str]:
     if not api_key:
         return False, "Key kosong — fallback ke STT lokal / text"
     url = "https://api.groq.com/openai/v1/models"
-    req = urllib.request.Request(url)
+    req = urllib.request.Request(url, headers={"User-Agent": "live-voice-cohost/0.1"})
     req.add_header("Authorization", f"Bearer {api_key}")
     try:
         with urllib.request.urlopen(req, timeout=5) as resp:
