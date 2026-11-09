@@ -28,7 +28,7 @@ class Settings(BaseSettings):
     # LLM (OpenRouter free tier by default — no local LLM required)
     llm_base_url: str = "https://openrouter.ai/api/v1"
     llm_api_key: str = Field(default=_FALLBACK_LLM_KEY)
-    llm_model: str = "meta-llama/llama-3.3-70b-instruct:free"
+    llm_model: str = "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free"
     llm_reasoning_effort: str = "none"
     llm_temperature: float = 0.8
     llm_max_tokens: int = 220

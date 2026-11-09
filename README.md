@@ -90,7 +90,7 @@ no code changes:
 ```bash
 JARVIS_LLM_BASE_URL=https://openrouter.ai/api/v1
 JARVIS_LLM_API_KEY=REPLACE_ME
-JARVIS_LLM_MODEL=meta-llama/llama-3.3-70b-instruct:free
+JARVIS_LLM_MODEL=nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free
 ```
 
 The key falls back through `JARVIS_LLM_API_KEY` → `OPENROUTER_API_KEY` →
@@ -100,7 +100,7 @@ OpenAI-compatible, one base URL + key swap):
 
 | Provider | Base URL | Model (free tier) | Key var |
 |----------|----------|-------------------|---------|
-| **OpenRouter** (default) | `https://openrouter.ai/api/v1` | `meta-llama/llama-3.3-70b-instruct:free` (or any `:free`) | `OPENROUTER_API_KEY` |
+| **OpenRouter** (default) | `https://openrouter.ai/api/v1` | `nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free` (or any `:free`) | `OPENROUTER_API_KEY` |
 | **Groq** | `https://api.groq.com/openai/v1` | `llama-3.3-70b-versatile` | `GROQ_API_KEY` |
 | **NVIDIA NIM** | `https://integrate.api.nvidia.com/v1` | DeepSeek / GLM / Gemma (Free endpoint) | `NVIDIA_API_KEY` |
 | **GitHub Models** | `https://models.inference.ai.azure.com` | GPT-4.1 / Llama / o4-mini | GitHub token |
@@ -135,7 +135,7 @@ hardcoded. The `.env.example` is commented end-to-end. Highlights:
 | `JARVIS_TTS_BACKEND` | `edge` | `edge` / `cartesia` / `sapi` |
 | `JARVIS_TTS_VOICE` | `id-ID-ArdiNeural` | Indonesian Edge voice |
 | `JARVIS_LLM_BASE_URL` | `https://openrouter.ai/api/v1` | any OpenAI-compatible endpoint |
-| `JARVIS_LLM_MODEL` | `meta-llama/llama-3.3-70b-instruct:free` | OpenRouter free model |
+| `JARVIS_LLM_MODEL` | `nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free` | OpenRouter free model |
 | `JARVIS_STREAMER_NAME` | `Pak Febri` | name the voice addresses on air |
 | `JARVIS_PTT_KEY` | `f13` | push-to-talk key (`f13` suits Stream Deck) |
 | `JARVIS_OUTPUT_DEVICE` | — | substring of output device (e.g. `CABLE Input`) |

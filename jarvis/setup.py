@@ -26,7 +26,7 @@ PRESETS = {
     "1": {
         "name": "OpenRouter (Free tier — recommended)",
         "base_url": "https://openrouter.ai/api/v1",
-        "model": "meta-llama/llama-3.3-70b-instruct:free",
+        "model": "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free",
         "key_hint": "Daftar gratis di https://openrouter.ai/keys (no credit card)",
     },
     "2": {

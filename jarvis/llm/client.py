@@ -63,6 +63,9 @@ class LLMClient:
         }
         if self.reasoning_effort:
             body["reasoning_effort"] = self.reasoning_effort
+        # OpenRouter / reasoning models: suppress thinking tokens so first voice chunk is fast
+        if "openrouter.ai" in self.base_url:
+            body["include_reasoning"] = False
         if tools:
             body["tools"] = tools
             body["tool_choice"] = "auto"
@@ -95,8 +98,9 @@ class LLMClient:
                     delta = choice.get("delta") or {}
                     if choice.get("finish_reason"):
                         finish = choice["finish_reason"]
-                    if delta.get("reasoning_content"):
-                        yield StreamEvent("reasoning", text=delta["reasoning_content"])
+                    reason = delta.get("reasoning_content") or delta.get("reasoning")
+                    if reason:
+                        yield StreamEvent("reasoning", text=reason)
                     if delta.get("content"):
                         yield StreamEvent("text", text=delta["content"])
                     for tc in delta.get("tool_calls") or []:
