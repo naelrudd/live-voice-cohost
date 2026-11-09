@@ -77,6 +77,8 @@ class Settings(BaseSettings):
 
     # persona / streaming
     streamer_name: str = "Pak Febri"
+    max_history: int = 30
+    enable_fillers: bool = False  # False: hilangkan "Oke", "Hmm" otomatis saat jeda LLM
 
     # guardrails
     deny_actions: str = "buy,sell,order,withdraw,transfer,confirm payment,place order"

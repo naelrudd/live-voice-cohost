@@ -139,6 +139,8 @@ hardcoded. The `.env.example` is commented end-to-end. Highlights:
 | `JARVIS_LLM_BASE_URL` | `https://api.groq.com/openai/v1` | any OpenAI-compatible endpoint |
 | `JARVIS_LLM_MODEL` | `openai/gpt-oss-20b,qwen/qwen3.8-27b` | comma-separated fallback chain |
 | `JARVIS_STREAMER_NAME` | `Pak Febri` | name the voice addresses on air |
+| `JARVIS_MAX_HISTORY` | `30` | conversation messages kept in context |
+| `JARVIS_ENABLE_FILLERS` | `false` | play "thinking" bridge words (tool acks always play) |
 | `JARVIS_PTT_KEY` | `f13` | push-to-talk key (`f13` suits Stream Deck) |
 | `JARVIS_OUTPUT_DEVICE` | — | substring of output device (e.g. `CABLE Input`) |
 

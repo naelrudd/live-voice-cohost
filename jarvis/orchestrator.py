@@ -26,9 +26,9 @@ from .tools import run_tool, tool_schemas
 
 LOG_DIR = Path(__file__).resolve().parent.parent / "logs"
 
-FILLERS = ["Oke,", "Hmm, bentar ya.", "Gue cek dulu."]
+FILLERS = ["Gue cek dulu.", "Bentar, gue liat datanya.", "Nih, gue tarik info pasar."]
 TOOL_ACKS = ["Bentar, gue tarik datanya dulu.", "Sabar ya, gue cek data live-nya."]
-MAX_FILLER_CLIPS = 3
+MAX_FILLER_CLIPS = 2
 SENTENCE_END = re.compile(r"(?<=[.!?…])\s+|\n+")
 SOFT_BREAK = re.compile(r"(?<=[,;:])\s+")
 
@@ -96,7 +96,8 @@ class TurnMetrics:
 class Orchestrator:
     def __init__(self, *, llm: LLMClient, tts, player, stt=None,
                  tools_enabled: bool = True, max_tool_rounds: int = 2,
-                 streamer_name: str = "Pak Febri",
+                 streamer_name: str = "Pak Febri", max_history: int = 30,
+                 enable_fillers: bool = False,
                  on_event: Callable[[dict], None] | None = None):
         self.llm = llm
         self.tts = tts
@@ -106,7 +107,8 @@ class Orchestrator:
         self.max_tool_rounds = max_tool_rounds
         self.streamer_name = streamer_name
         self.history: list[dict] = []
-        self.max_history = 12
+        self.max_history = max_history
+        self.enable_fillers = enable_fillers
         self.fillers: list[np.ndarray] = []
         self.tool_acks: list[np.ndarray] = []
         self._filler_sr = 24000
@@ -127,8 +129,9 @@ class Orchestrator:
             except Exception as exc:
                 self.on_event({"type": "warmup_error", "detail": f"{text}: {exc}"})
 
-        jobs = [(t, self.fillers) for t in FILLERS]
-        jobs += [(t, self.tool_acks) for t in TOOL_ACKS]
+        jobs = [(t, self.tool_acks) for t in TOOL_ACKS]
+        if self.enable_fillers:
+            jobs = [(t, self.fillers) for t in FILLERS] + jobs
         # Sequential, not parallel: four simultaneous cold WSS handshakes to the
         # Edge endpoint get throttled and every later sentence pays ~1.3 s instead
         # of ~0.5 s. One after another keeps the rest of the session warm.
@@ -342,7 +345,7 @@ class Orchestrator:
                 pcm = random.choice(self.tool_acks)
                 self.on_event({"type": "filler", "detail": "tool_ack",
                                "at_ms": round((time.perf_counter() - metrics.t_speech_end) * 1000)})
-            elif self.fillers:
+            elif self.enable_fillers and self.fillers:
                 pcm = self.fillers[spoken % len(self.fillers)]
                 self.on_event({"type": "filler", "n": spoken + 1,
                                "at_ms": round((time.perf_counter() - metrics.t_speech_end) * 1000)})

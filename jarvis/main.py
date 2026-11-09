@@ -35,7 +35,10 @@ def build(settings: Settings, bus: EventBus):
     stt = build_stt(settings)
     orch = Orchestrator(llm=llm, tts=tts, player=player, stt=stt,
                         tools_enabled=settings.tools_enabled,
-                        streamer_name=settings.streamer_name, on_event=bus.emit)
+                        streamer_name=settings.streamer_name,
+                        max_history=settings.max_history,
+                        enable_fillers=settings.enable_fillers,
+                        on_event=bus.emit)
     return player, llm, tts, stt, orch, out, inp
 
 
