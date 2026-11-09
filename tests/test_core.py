@@ -1,7 +1,22 @@
+import pytest
+
 from jarvis.config import Settings
 from jarvis.orchestrator import split_sentences
 from jarvis.tools import desktop, tool_schemas
 from jarvis.tools.finance import resolve_symbol
+
+# pynput.keyboard needs a real backend (X11 on Linux, win32 native on Windows).
+# Headless CI runners have no display, so the import fails there; the hotkey
+# tests still run on Windows where the app actually drives the keyboard.
+_HOTKEYS_AVAILABLE = True
+try:
+    import pynput.keyboard  # noqa: F401
+except Exception:
+    _HOTKEYS_AVAILABLE = False
+
+requires_hotkeys = pytest.mark.skipif(
+    not _HOTKEYS_AVAILABLE,
+    reason="pynput keyboard backend unavailable (headless CI)",)
 
 
 def test_deny_actions_parsed():
@@ -40,6 +55,7 @@ def test_split_sentences_collapses_newlines():
     assert all("\n" not in s for s in sents)
 
 
+@requires_hotkeys
 def test_hotkey_matches_side_specific_modifiers():
     """Windows sends ctrl_l/alt_l (VK 162/164), not ctrl/alt (VK 17/18)."""
     from pynput import keyboard as kb
@@ -67,6 +83,7 @@ def test_hotkey_matches_side_specific_modifiers():
     assert seen == ["down", "up"]
 
 
+@requires_hotkeys
 def test_hotkey_release_of_modifier_first_does_not_stick():
     from pynput import keyboard as kb
 
@@ -84,6 +101,7 @@ def test_hotkey_release_of_modifier_first_does_not_stick():
     assert seen == ["down", "up"]
 
 
+@requires_hotkeys
 def test_hotkey_single_key_and_spec_rejects_bad_input():
     from pynput import keyboard as kb
 
@@ -101,6 +119,7 @@ def test_hotkey_single_key_and_spec_rejects_bad_input():
         raise AssertionError(f"{bad!r} should be rejected")
 
 
+@requires_hotkeys
 def test_hotkey_listener_can_start_and_stop():
     from jarvis.hotkeys import Binding, HotkeyListener
 
