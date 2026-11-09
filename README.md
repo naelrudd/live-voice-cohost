@@ -88,20 +88,22 @@ The whole brain is three env vars — swap them to any OpenAI-compatible provide
 no code changes:
 
 ```bash
-JARVIS_LLM_BASE_URL=https://openrouter.ai/api/v1
+JARVIS_LLM_BASE_URL=https://api.groq.com/openai/v1
 JARVIS_LLM_API_KEY=REPLACE_ME
-JARVIS_LLM_MODEL=nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free
+JARVIS_LLM_MODEL=openai/gpt-oss-20b,qwen/qwen3.8-27b
 ```
 
-The key falls back through `JARVIS_LLM_API_KEY` → `OPENROUTER_API_KEY` →
-`OPENAI_API_KEY`, so a stock `OPENAI_API_KEY`/`OPENROUTER_API_KEY` in the
-environment works without touching `.env`. Free-by-default options (all
+`JARVIS_LLM_MODEL` accepts a comma-separated fallback chain — if the primary
+returns empty or errors (rate limit, model removed), the next model answers.
+The key falls back through `JARVIS_LLM_API_KEY` → `JARVIS_GROQ_API_KEY` →
+`OPENROUTER_API_KEY` → `OPENAI_API_KEY`, so a stock key for any supported
+provider works without touching `.env`. Free-by-default options (all
 OpenAI-compatible, one base URL + key swap):
 
 | Provider | Base URL | Model (free tier) | Key var |
 |----------|----------|-------------------|---------|
-| **OpenRouter** (default) | `https://openrouter.ai/api/v1` | `nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free` (or any `:free`) | `OPENROUTER_API_KEY` |
-| **Groq** | `https://api.groq.com/openai/v1` | `llama-3.3-70b-versatile` | `GROQ_API_KEY` |
+| **Groq** (default) | `https://api.groq.com/openai/v1` | `openai/gpt-oss-20b` / `qwen/qwen3.8-27b` | `JARVIS_GROQ_API_KEY` |
+| **OpenRouter** | `https://openrouter.ai/api/v1` | any `:free` slug (tight 50 req/day free pool) | `OPENROUTER_API_KEY` |
 | **NVIDIA NIM** | `https://integrate.api.nvidia.com/v1` | DeepSeek / GLM / Gemma (Free endpoint) | `NVIDIA_API_KEY` |
 | **GitHub Models** | `https://models.inference.ai.azure.com` | GPT-4.1 / Llama / o4-mini | GitHub token |
 | **Together** | `https://api.together.xyz/v1` | 40+ open models ($ credit) | `TOGETHER_API_KEY` |
@@ -134,8 +136,8 @@ hardcoded. The `.env.example` is commented end-to-end. Highlights:
 | `JARVIS_GROQ_API_KEY` | — | fast cloud STT |
 | `JARVIS_TTS_BACKEND` | `edge` | `edge` / `cartesia` / `sapi` |
 | `JARVIS_TTS_VOICE` | `id-ID-ArdiNeural` | Indonesian Edge voice |
-| `JARVIS_LLM_BASE_URL` | `https://openrouter.ai/api/v1` | any OpenAI-compatible endpoint |
-| `JARVIS_LLM_MODEL` | `nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free` | OpenRouter free model |
+| `JARVIS_LLM_BASE_URL` | `https://api.groq.com/openai/v1` | any OpenAI-compatible endpoint |
+| `JARVIS_LLM_MODEL` | `openai/gpt-oss-20b,qwen/qwen3.8-27b` | comma-separated fallback chain |
 | `JARVIS_STREAMER_NAME` | `Pak Febri` | name the voice addresses on air |
 | `JARVIS_PTT_KEY` | `f13` | push-to-talk key (`f13` suits Stream Deck) |
 | `JARVIS_OUTPUT_DEVICE` | — | substring of output device (e.g. `CABLE Input`) |

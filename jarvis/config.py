@@ -15,6 +15,7 @@ load_dotenv(ROOT / ".env")
 # Fallbacks to standard OpenAI-compatible vars if the dedicated var is empty.
 _FALLBACK_LLM_KEY = (
     os.environ.get("JARVIS_LLM_API_KEY")
+    or os.environ.get("JARVIS_GROQ_API_KEY")
     or os.environ.get("OPENROUTER_API_KEY")
     or os.environ.get("OPENAI_API_KEY")
     or ""
@@ -25,10 +26,11 @@ _FALLBACK_TAVILY = os.environ.get("JARVIS_TAVILY_API_KEY") or os.environ.get("TA
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="JARVIS_", env_file=str(ROOT / ".env"), extra="ignore")
 
-    # LLM (OpenRouter free tier by default — no local LLM required)
-    llm_base_url: str = "https://openrouter.ai/api/v1"
+    # LLM (Groq free tier by default — reliable tool calling for the voice loop).
+    # `llm_model` accepts a comma-separated fallback chain: primary,backup1,backup2.
+    llm_base_url: str = "https://api.groq.com/openai/v1"
     llm_api_key: str = Field(default=_FALLBACK_LLM_KEY)
-    llm_model: str = "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free"
+    llm_model: str = "openai/gpt-oss-20b,qwen/qwen3.8-27b"
     llm_reasoning_effort: str = "none"
     llm_temperature: float = 0.8
     llm_max_tokens: int = 220

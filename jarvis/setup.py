@@ -24,16 +24,16 @@ ENV_EXAMPLE = ROOT / ".env.example"
 
 PRESETS = {
     "1": {
-        "name": "OpenRouter (Free tier — recommended)",
+        "name": "Groq (free tier — recommended)",
+        "base_url": "https://api.groq.com/openai/v1",
+        "model": "openai/gpt-oss-20b,qwen/qwen3.8-27b",
+        "key_hint": "Ambil key gratis di https://console.groq.com/keys",
+    },
+    "2": {
+        "name": "OpenRouter (free tier, 50 req/day pool)",
         "base_url": "https://openrouter.ai/api/v1",
         "model": "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free",
         "key_hint": "Daftar gratis di https://openrouter.ai/keys (no credit card)",
-    },
-    "2": {
-        "name": "Groq (Ultra-fast LPU)",
-        "base_url": "https://api.groq.com/openai/v1",
-        "model": "llama-3.3-70b-versatile",
-        "key_hint": "Ambil key gratis di https://console.groq.com/keys",
     },
     "3": {
         "name": "Local gateway / proxy (e.g. 9Router, vLLM, LM Studio, Ollama)",
