@@ -1,0 +1,39 @@
+# Secrets — never commit
+.env
+*.pem
+*.key
+*.crt
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+
+# Runtime artifacts
+logs/
+*.wav
+*.mp3
+*.jsonl
+*.log
+
+# Test / tooling caches
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+
+# Dev-only scripts (may contain local machine references)
+dev/legacy/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.lnk

@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8" />
+<title>Jarvis Overlay</title>
+<style>
+  :root { --bg: #05070c; --gold: #f0b429; --mint: #35d6a4; --red: #ff5d5d; --dim: #7c8899; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: transparent; font-family: "Inter", "Segoe UI", system-ui, sans-serif; }
+  body { display: grid; place-items: end stretch; padding: 0; }
+
+  .card {
+    margin: 14px; padding: 14px 18px; border-radius: 16px;
+    background: linear-gradient(160deg, rgba(9,12,20,.92), rgba(9,12,20,.72));
+    border: 1px solid rgba(240,180,41,.22);
+    box-shadow: 0 12px 40px rgba(0,0,0,.55), inset 0 1px 0 rgba(255,255,255,.05);
+    backdrop-filter: blur(14px);
+    display: grid; grid-template-columns: 54px 1fr auto; gap: 14px; align-items: center;
+    transform: translateY(0); transition: opacity .25s ease, transform .25s ease;
+  }
+  .card.idle { opacity: .55; }
+
+  .orb { width: 54px; height: 54px; border-radius: 50%; position: relative;
+    background: radial-gradient(circle at 35% 30%, #ffe6a1, var(--gold) 45%, #7a5a0d 100%);
+    box-shadow: 0 0 0 0 rgba(240,180,41,.45); }
+  .orb::after { content: ""; position: absolute; inset: -6px; border-radius: 50%;
+    border: 1px solid rgba(240,180,41,.35); opacity: 0; }
+  .card.listening .orb { animation: pulse 1.1s infinite; }
+  .card.thinking .orb { background: radial-gradient(circle at 35% 30%, #b9ffe9, var(--mint) 45%, #0b5c45 100%); animation: spin 2.2s linear infinite; }
+  .card.speaking .orb { background: radial-gradient(circle at 35% 30%, #fff3cf, #fff 40%, var(--gold) 100%); animation: pulse .55s infinite; }
+  .card.error .orb { background: radial-gradient(circle at 35% 30%, #ffc9c9, var(--red) 50%, #5c0b0b 100%); }
+
+  @keyframes pulse { 0%{box-shadow:0 0 0 0 rgba(240,180,41,.5)} 70%{box-shadow:0 0 0 18px rgba(240,180,41,0)} 100%{box-shadow:0 0 0 0 rgba(240,180,41,0)} }
+  @keyframes spin { from{transform:rotate(0)} to{transform:rotate(360deg)} }
+
+  .meta { display: grid; gap: 6px; min-width: 0; }
+  .who { font-size: 11px; letter-spacing: .16em; text-transform: uppercase; color: var(--dim); display: flex; gap: 10px; align-items: center; }
+  .who b { color: var(--gold); font-weight: 600; letter-spacing: .16em; }
+  .line { font-size: 15px; line-height: 1.35; color: #eef2f7; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+  .line.dim { color: var(--dim); }
+
+  .bars { display: flex; gap: 3px; align-items: flex-end; height: 34px; }
+  .bars span { width: 3px; border-radius: 2px; background: var(--gold); opacity: .85; height: 6px; transition: height .12s linear; }
+  .card.idle .bars span { height: 4px !important; opacity: .3; }
+
+  .tools { grid-column: 1 / -1; font-size: 11px; color: var(--mint); font-family: ui-monospace, "Cascadia Code", monospace; min-height: 0; }
+  .tools:empty { display: none; }
+</style>
+</head>
+<body>
+<div class="card idle" id="card">
+  <div class="orb"></div>
+  <div class="meta">
+    <div class="who"><b>JARVIS</b><span id="state">idle</span><span id="lat"></span></div>
+    <div class="line dim" id="line">siap nemenin live</div>
+  </div>
+  <div class="bars" id="bars"></div>
+  <div class="tools" id="tools"></div>
+</div>
+<script>
+  const card = document.getElementById('card');
+  const stateEl = document.getElementById('state');
+  const lineEl = document.getElementById('line');
+  const latEl = document.getElementById('lat');
+  const toolsEl = document.getElementById('tools');
+  const barsEl = document.getElementById('bars');
+
+  // 12 static bars; heights driven by animation timing, not real FFT (cheap, looks alive).
+  const N = 12;
+  for (let i = 0; i < N; i++) {
+    const s = document.createElement('span');
+    s.style.animation = `none`;
+    barsEl.appendChild(s);
+  }
+  let phase = 0;
+  setInterval(() => {
+    phase += 0.35;
+    const speaking = card.classList.contains('speaking');
+    const listening = card.classList.contains('listening');
+    [...barsEl.children].forEach((el, i) => {
+      if (!speaking && !listening) { el.style.height = '4px'; return; }
+      const amp = speaking ? 30 : 20;
+      const h = 5 + Math.abs(Math.sin(phase + i * 0.55) * Math.cos(phase * 0.7 + i)) * amp;
+      el.style.height = h.toFixed(0) + 'px';
+    });
+  }, 90);
+
+  function setState(name) {
+    card.className = 'card ' + name;
+    stateEl.textContent = name;
+  }
+
+  let ws;
+  function connect() {
+    ws = new WebSocket(`ws://${location.host}/events`);
+    ws.onmessage = (e) => handle(JSON.parse(e.data));
+    ws.onclose = () => setTimeout(connect, 1500);
+  }
+
+  function handle(ev) {
+    switch (ev.type) {
+      case 'listening':
+        setState('listening');
+        lineEl.textContent = 'dengerin...'; lineEl.classList.add('dim');
+        latEl.textContent = '';
+        break;
+      case 'user':
+        setState('thinking');
+        lineEl.textContent = ev.text; lineEl.classList.remove('dim');
+        latEl.textContent = '';
+        toolsEl.textContent = '';
+        break;
+      case 'tool_call':
+        toolsEl.textContent = `→ ${ev.name}(${JSON.stringify(ev.args)})`;
+        break;
+      case 'tool_result':
+        toolsEl.textContent = `${ev.ok ? '✓' : '✗'} ${ev.name}`;
+        break;
+      case 'sentence':
+        setState('speaking');
+        lineEl.textContent = ev.text; lineEl.classList.remove('dim');
+        break;
+      case 'filler':
+        setState('speaking');
+        break;
+      case 'turn_done':
+        setState('idle');
+        const m = ev.metrics || {};
+        latEl.textContent = m.first_audio_ms ? `${(m.first_audio_ms / 1000).toFixed(2)}s` : '';
+        break;
+      case 'cancelled':
+        setState('idle');
+        break;
+      case 'error':
+        setState('error');
+        lineEl.textContent = ev.detail || 'error';
+        break;
+    }
+  }
+  connect();
+</script>
+</body>
+</html>

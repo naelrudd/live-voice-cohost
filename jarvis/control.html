@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Jarvis — Control Panel</title>
+<style>
+  :root { --bg:#070a11; --panel:#0d1220; --gold:#f0b429; --mint:#35d6a4; --red:#ff5d5d;
+          --dim:#7c8899; --line:#1b2335; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:#eef2f7;
+         font-family:"Inter","Segoe UI",system-ui,sans-serif; padding:24px; min-height:100vh; }
+  .wrap { max-width:640px; margin:0 auto; display:grid; gap:16px; }
+  header { display:flex; align-items:center; gap:12px; }
+  .dot { width:12px; height:12px; border-radius:50%; background:var(--dim); }
+  .dot.ready { background:var(--mint); box-shadow:0 0 10px var(--mint); }
+  .dot.busy  { background:var(--gold); box-shadow:0 0 10px var(--gold); }
+  h1 { font-size:18px; margin:0; letter-spacing:.08em; }
+  header .st { margin-left:auto; font-size:12px; color:var(--dim); text-transform:uppercase; letter-spacing:.14em; }
+
+  .panel { background:var(--panel); border:1px solid var(--line); border-radius:16px; padding:20px; }
+
+  /* hold-to-talk button */
+  .talk { width:100%; height:96px; border:none; border-radius:14px; cursor:pointer;
+          background:linear-gradient(160deg, rgba(240,180,41,.16), rgba(240,180,41,.05));
+          border:1px solid rgba(240,180,41,.35); color:var(--gold);
+          font-size:18px; font-weight:600; letter-spacing:.04em;
+          transition:transform .08s ease, background .15s ease;
+          -webkit-user-select:none; user-select:none; touch-action:none; }
+  .talk:active, .talk.recording { background:linear-gradient(160deg, rgba(255,93,93,.22), rgba(255,93,93,.08));
+        border-color:var(--red); color:#ffd7d7; transform:scale(.99); }
+  .talk .hint { display:block; font-size:11px; font-weight:400; color:var(--dim); margin-top:4px; }
+
+  /* text input */
+  .chat { display:flex; gap:10px; }
+  input[type=text] { flex:1; background:#0a0f1c; border:1px solid var(--line); border-radius:10px;
+        padding:12px 14px; color:#eef2f7; font-size:14px; outline:none; }
+  input[type=text]:focus { border-color:var(--gold); }
+  button.go { border:none; border-radius:10px; padding:0 22px; background:var(--gold); color:#1a1405;
+        font-weight:600; cursor:pointer; font-size:14px; }
+  button.go:disabled { opacity:.4; cursor:default; }
+
+  .chips { display:flex; flex-wrap:wrap; gap:8px; }
+  .chip { background:#0a0f1c; border:1px solid var(--line); color:var(--dim); border-radius:999px;
+        padding:7px 13px; font-size:12px; cursor:pointer; }
+  .chip:hover { border-color:var(--gold); color:var(--gold); }
+
+  .status { font-size:13px; color:var(--dim); min-height:20px; }
+  .status b { color:var(--gold); }
+  .statebox { display:flex; gap:8px; align-items:center; }
+  .statebox .badge { font-size:11px; text-transform:uppercase; letter-spacing:.12em; padding:4px 10px;
+        border-radius:999px; background:#0a0f1c; border:1px solid var(--line); color:var(--dim); }
+  .statebox .badge.on { color:var(--red); border-color:var(--red); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <span class="dot" id="dot"></span>
+    <h1>JARVIS — CONTROL</h1>
+    <span class="st" id="state">idle</span>
+  </header>
+
+  <div class="panel">
+    <button class="talk" id="talk">
+      TAHAN UNTUK BICARA
+      <span class="hint">klik-tahan → bicara ke mic PC → lepas</span>
+    </button>
+  </div>
+
+  <div class="panel">
+    <div class="chat">
+      <input type="text" id="msg" placeholder="ketik pertanyaan… (harga emas? ihsg? kurs dollar?)" />
+      <button class="go" id="send">Kirim</button>
+    </div>
+    <div class="chips" id="chips" style="margin-top:12px;">
+      <span class="chip">harga emas sekarang</span>
+      <span class="chip">IHSG sekarang berapa</span>
+      <span class="chip">kurs dollar sekarang</span>
+      <span class="chip">buka chart XAUUSD 4 jam</span>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="statebox"><span class="badge" id="badge">idle</span>
+      <span class="status" id="txt">siap. tahan tombol merah atau ketik pertanyaan.</span></div>
+  </div>
+</div>
+
+<script>
+  const dot = document.getElementById('dot');
+  const state = document.getElementById('state');
+  const badge = document.getElementById('badge');
+  const txt = document.getElementById('txt');
+  const talk = document.getElementById('talk');
+  const msg = document.getElementById('msg');
+  const send = document.getElementById('send');
+
+  function setState(name, detail) {
+    state.textContent = name;
+    badge.textContent = name;
+    const busy = (name !== 'idle');
+    dot.className = 'dot ' + (busy ? 'busy' : 'ready');
+    badge.classList.toggle('on', name === 'listening');
+    txt.textContent = (detail ? detail + ' — ' : '') + {
+      idle:'siap. tahan tombol merah atau ketik pertanyaan.',
+      listening:'MIC LIVE — bicara sekarang, lepas tombol saat selesai.',
+      thinking:'lagi mikir…',
+      speaking:'lagi jawab…',
+      error:'terjadi error.'
+    }[name] || '';
+  }
+
+  async function post(path, body) {
+    try {
+      const r = await fetch(path, { method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify(body || {}) });
+      return await r.json();
+    } catch (e) { return { ok:false, error:String(e) }; }
+  }
+
+  // hold-to-talk: pointer events cover mouse + touch (OBS "Interact" / phone).
+  talk.addEventListener('pointerdown', (e) => {
+    e.preventDefault();
+    talk.classList.add('recording');
+    post('/ptt/start');
+  });
+  const stopTalk = () => { talk.classList.remove('recording'); post('/ptt/stop'); };
+  talk.addEventListener('pointerup', stopTalk);
+  talk.addEventListener('pointercancel', stopTalk);
+  talk.addEventListener('pointerleave', stopTalk);   // slide off = release
+  talk.addEventListener('contextmenu', (e) => e.preventDefault());
+
+  send.addEventListener('click', () => {
+    const t = msg.value.trim();
+    if (!t) return;
+    msg.value = '';
+    post('/say', { text: t });
+  });
+  msg.addEventListener('keydown', (e) => { if (e.key === 'Enter') send.click(); });
+
+  document.querySelectorAll('.chip').forEach(c =>
+    c.addEventListener('click', () => post('/say', { text: c.textContent })));
+
+  // live state from the same event bus as the OBS overlay
+  function connect() {
+    const ws = new WebSocket(`ws://${location.host}/events`);
+    ws.onmessage = (e) => handle(JSON.parse(e.data));
+    ws.onclose = () => setTimeout(connect, 1500);
+  }
+  function handle(ev) {
+    switch (ev.type) {
+      case 'listening': setState('listening'); break;
+      case 'user':      setState('thinking', ev.text); break;
+      case 'sentence':  setState('speaking', ev.text); break;
+      case 'turn_done':
+      case 'cancelled': setState('idle'); break;
+      case 'error':     setState('error', ev.detail); break;
+    }
+  }
+  setState('idle');
+  connect();
+</script>
+</body>
+</html>
