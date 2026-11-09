@@ -14,3 +14,6 @@
 *.lock text eol=lf
 *.html text eol=lf
 *.json text eol=lf
+.env.example text eol=lf
+.gitignore text eol=lf
+.gitattributes text eol=lf
