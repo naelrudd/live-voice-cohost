@@ -55,7 +55,7 @@ class LLMClient:
         self.timeout = timeout
 
     def _headers(self) -> dict[str, str]:
-        h = {"Content-Type": "application/json"}
+        h = {"Content-Type": "application/json", "User-Agent": "live-voice-cohost/0.1"}
         if self.api_key:
             h["Authorization"] = f"Bearer {self.api_key}"
         return h
@@ -69,7 +69,7 @@ class LLMClient:
             "max_tokens": self.max_tokens,
             "stream": stream,
         }
-        if self.reasoning_effort:
+        if self.reasoning_effort in {"low", "medium", "high"}:
             body["reasoning_effort"] = self.reasoning_effort
         if tools:
             body["tools"] = tools
@@ -104,8 +104,23 @@ class LLMClient:
                                 break
                             try:
                                 payload = json.loads(data)
+                            except json.JSONDecodeError:
+                                continue
+                            # Groq/LiteLLM gateways can emit an error object mid-stream
+                            # ("tool_use_failed", "failed_generation", rate limits). Passing
+                            # it on as plain text is what makes the co-host read error
+                            # strings out loud, so fail loudly and let fallback/engine handle it.
+                            if isinstance(payload, dict) and payload.get("error"):
+                                err = payload["error"]
+                                if isinstance(err, dict):
+                                    code = err.get("code") or err.get("type") or "error"
+                                    msg = err.get("message") or err.get("failed_generation") or ""
+                                else:
+                                    code, msg = "error", str(err)
+                                raise RuntimeError(f"LLM stream error ({code}): {str(msg)[:200]}")
+                            try:
                                 choice = payload["choices"][0]
-                            except (json.JSONDecodeError, KeyError, IndexError):
+                            except (KeyError, IndexError):
                                 continue
                             delta = choice.get("delta") or {}
                             if choice.get("finish_reason"):

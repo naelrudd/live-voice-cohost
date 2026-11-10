@@ -28,9 +28,19 @@ LOG_DIR = Path(__file__).resolve().parent.parent / "logs"
 
 FILLERS = ["Gue cek dulu.", "Bentar, gue liat datanya.", "Nih, gue tarik info pasar."]
 TOOL_ACKS = ["Bentar, gue tarik datanya dulu.", "Sabar ya, gue cek data live-nya."]
+LLM_FAIL_LINE = "Lagi ada gangguan ke model, coba lagi bentar ya."
 MAX_FILLER_CLIPS = 2
 SENTENCE_END = re.compile(r"(?<=[.!?…])\s+|\n+")
 SOFT_BREAK = re.compile(r"(?<=[,;:])\s+")
+# Safety net: models/gateways sometimes leak literal "[PARSING ERROR]" style markers
+# into the text stream. Never send that to TTS.
+BRACKETED_ERROR = re.compile(r"\[[^\]]*ERROR[^\]]*\]", re.IGNORECASE)
+
+
+def _sanitize_answer(text: str) -> str:
+    """Strip error markers; never leave TTS with an error string or dead air."""
+    clean = BRACKETED_ERROR.sub("", text or "").strip()
+    return clean or LLM_FAIL_LINE
 
 
 def split_sentences(buffer: str, flush: bool = False) -> tuple[list[str], str]:
@@ -204,6 +214,7 @@ class Orchestrator:
 
         speaker = asyncio.create_task(self._speak_worker(sentence_q, first_audio, m))
         filler = asyncio.create_task(self._maybe_filler(first_audio, m))
+        spoken_any = False
 
         try:
             for round_no in range(self.max_tool_rounds + 1):
@@ -215,6 +226,11 @@ class Orchestrator:
                     if self._cancelled:
                         break
                     if ev.kind == "text":
+                        if BRACKETED_ERROR.search(ev.text):
+                            # Never let an error marker reach TTS mid-stream.
+                            self.on_event({"type": "error",
+                                           "detail": f"model leaked error marker: {ev.text[:80]}"})
+                            continue
                         if not round_marked:
                             round_marked = True
                             m.round_ttft_ms.append(round((time.perf_counter() - t_round) * 1000, 1))
@@ -225,6 +241,7 @@ class Orchestrator:
                         sentences, buffer = split_sentences(buffer)
                         for s in sentences:
                             await sentence_q.put(s)
+                            spoken_any = True
                             self.on_event({"type": "sentence", "text": s})
                     elif ev.kind == "tool_calls":
                         pending_tools = ev.tool_calls
@@ -232,6 +249,7 @@ class Orchestrator:
                     break
                 if buffer.strip():
                     await sentence_q.put(buffer.strip())
+                    spoken_any = True
                 if not pending_tools:
                     break
                 # ---- execute tools in parallel, feed results back, loop once more
@@ -264,7 +282,13 @@ class Orchestrator:
                         "content": json.dumps(result, ensure_ascii=False)[:1600],
                     })
                 answer_parts = []
+        except Exception as exc:  # provider down / rate limited / bad response
+            self.on_event({"type": "error", "detail": f"{type(exc).__name__}: {str(exc)[:200]}"})
+            if not answer_parts:
+                answer_parts = [LLM_FAIL_LINE]
         finally:
+            if not spoken_any and not self._cancelled:
+                await sentence_q.put(LLM_FAIL_LINE)
             await sentence_q.put(None)
             filler.cancel()
             if not prime.done():
@@ -274,7 +298,7 @@ class Orchestrator:
             except asyncio.CancelledError:
                 pass
 
-        answer = "".join(answer_parts).strip()
+        answer = _sanitize_answer("".join(answer_parts).strip())
         m.answer = answer
         if answer:
             self._remember(user_text, answer)

@@ -31,9 +31,10 @@ class Settings(BaseSettings):
     llm_base_url: str = "https://api.groq.com/openai/v1"
     llm_api_key: str = Field(default=_FALLBACK_LLM_KEY)
     llm_model: str = "openai/gpt-oss-20b,qwen/qwen3.8-27b"
-    llm_reasoning_effort: str = "none"
+    llm_reasoning_effort: str = ""
+    # Valid: "", "low", "medium", "high". "none" or any other value = omitted.
     llm_temperature: float = 0.8
-    llm_max_tokens: int = 220
+    llm_max_tokens: int = 512
 
     # STT
     stt_backend: str = "groq"

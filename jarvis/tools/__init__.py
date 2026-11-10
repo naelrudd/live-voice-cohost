@@ -41,7 +41,9 @@ SCHEMAS: list[dict] = [
         "type": "function",
         "function": {
             "name": "open_url",
-            "description": "Buka URL apa pun di browser dedicated (tab baru) — berita, portal, dashboard.",
+            "description": ("Buka URL apa pun di browser dedicated (tab baru) — berita, portal, dashboard. "
+                            "WAJIB dipakai setiap kali streamer minta 'buka halaman', 'buka browser', "
+                            "'buka berita', 'tampilkan link', atau 'bukain tab baru'."),
             "parameters": {
                 "type": "object",
                 "properties": {"url": {"type": "string", "description": "URL lengkap http(s)"}},

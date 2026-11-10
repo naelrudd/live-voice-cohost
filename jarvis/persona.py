@@ -21,8 +21,16 @@ ATURAN OUTPUT (WAJIB):
 
 SYSTEM_PROMPT = get_system_prompt()
 
-TOOL_SYSTEM_HINT = """Kalau kamu memanggil tool, jangan bilang "sebentar" panjang-panjang — cukup lanjut ke jawaban setelah data masuk."""
+# Injected as second system message for models that respect multiple system messages.
+TOOL_SYSTEM_HINT = """Kalau kamu memanggil tool, jangan bilang "sebentar" panjang-panjang — cukup lanjut ke jawaban setelah data masuk.
+
+KHUSUS: kalau {streamer_name} minta "buka halaman", "buka browser", "buka URL", "tampilin berita", "buka link", WAJIB panggil tool `open_url` (pakai `web_search` dulu kalau butuh cari URL). JANGAN PERNAH bilang "sudah kebuka" atau "sudah dibukakan" KALAU BELUM memanggil tool. Kalau tak punya URL pasti, cari dulu dengan `web_search`."""
 
 
 def build_messages(history: list[dict], user_text: str, streamer_name: str = "Pak Febri") -> list[dict]:
-    return [{"role": "system", "content": get_system_prompt(streamer_name)}, *history, {"role": "user", "content": user_text}]
+    return [
+        {"role": "system", "content": get_system_prompt(streamer_name)},
+        {"role": "system", "content": TOOL_SYSTEM_HINT.format(streamer_name=streamer_name)},
+        *history,
+        {"role": "user", "content": user_text},
+    ]

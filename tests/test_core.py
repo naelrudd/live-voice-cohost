@@ -286,3 +286,163 @@ def test_setup_cli_wizard_checks_webbridge(monkeypatch):
     monkeypatch.setattr(webbridge, "ensure", fake_ensure)
     setup_mod.run_cli()
     assert seen == [True], "wizard must probe/start the bridge exactly once"
+
+
+# ------------------------------------------------- request routing / LLM payload
+
+def test_llm_payload_omits_reasoning_effort_when_not_supported():
+    """Groq rejects reasoning_effort='none' with HTTP 400 — the key must be absent."""
+    from jarvis.llm.client import LLMClient
+
+    c = LLMClient("http://x", "k", "m", reasoning_effort="none")
+    assert "reasoning_effort" not in c._payload([], None, True, "m")
+    c = LLMClient("http://x", "k", "m", reasoning_effort="")
+    assert "reasoning_effort" not in c._payload([], None, True, "m")
+    c = LLMClient("http://x", "k", "m", reasoning_effort="low")
+    assert c._payload([], None, True, "m")["reasoning_effort"] == "low"
+
+
+def test_sanitize_answer_replaces_error_markers():
+    from jarvis.orchestrator import _sanitize_answer
+
+    assert _sanitize_answer("[PARSING ERROR]") != "[PARSING ERROR]"
+    assert "coba lagi" in _sanitize_answer("")
+    assert _sanitize_answer("IHSG naik 0,8 persen.") == "IHSG naik 0,8 persen."
+
+
+def test_respond_calls_open_url_for_open_page_requests(monkeypatch):
+    """'bukain halaman browser ... berita' must reach desktop.open_url, not chit-chat."""
+    import asyncio
+
+    from jarvis import orchestrator as orch_mod
+    from jarvis.llm.client import StreamEvent, ToolCall
+    from jarvis.tools import desktop
+
+    calls: list[str] = []
+    monkeypatch.setattr(desktop, "open_url", 
+                        lambda url: (calls.append(url), {"ok": True, "url": url})[1])
+
+    class FakeLLM:
+        def __init__(self):
+            self.round = 0
+
+        async def stream(self, messages, tools=None, client=None):
+            self.round += 1
+            if self.round == 1:
+                yield StreamEvent("tool_calls", tool_calls=[
+                    ToolCall(id="1", name="open_url",
+                             arguments='{"url": "https://www.reuters.com/world/us/"}')])
+            else:
+                yield StreamEvent("text", text="Udah gue buka berita US-nya.")
+            yield StreamEvent("done", finish_reason="stop")
+
+    class FakeTTS:
+        sample_rate = 24000
+
+        async def synthesize(self, text):
+            raise RuntimeError("no warmup in test")
+
+        async def prime(self):
+            return None
+
+        async def stream(self, text):
+            yield b"\x00\x00" * 240
+
+    class FakeHandle:
+        def __init__(self):
+            import threading
+            self.done = threading.Event()
+
+        def feed(self, chunk):
+            pass
+
+        def end(self):
+            self.done.set()
+
+    class FakePlayer:
+        def warm(self, sr):
+            pass
+
+        def open_stream(self, sr):
+            return FakeHandle()
+
+        def interrupt(self):
+            pass
+
+    o = orch_mod.Orchestrator(llm=FakeLLM(), tts=FakeTTS(), player=FakePlayer(),
+                              tools_enabled=True)
+    m = asyncio.run(o.respond("Bukain halaman browser baru tentang berita US terbaru."))
+    assert calls == ["https://www.reuters.com/world/us/"], calls
+    assert m.tools == ["open_url"]
+    assert "buka berita" in m.answer.lower()
+
+
+def _stub_audio(monkeypatch, spoken: list):
+    """Fake TTS/player that records whatever the orchestrator tries to speak."""
+    from jarvis import orchestrator as orch_mod
+
+    class FakeTTS:
+        sample_rate = 24000
+        async def synthesize(self, text):
+            raise RuntimeError("no warmup in test")
+        async def prime(self):
+            return None
+        async def stream(self, text):
+            spoken.append(text)
+            yield b"\x00\x00" * 240
+
+    class FakeHandle:
+        def __init__(self):
+            import threading
+            self.done = threading.Event()
+        def feed(self, chunk):
+            pass
+        def end(self):
+            self.done.set()
+
+    class FakePlayer:
+        def warm(self, sr):
+            pass
+        def open_stream(self, sr):
+            return FakeHandle()
+        def interrupt(self):
+            pass
+
+    return orch_mod.Orchestrator(llm=None, tts=FakeTTS(), player=FakePlayer(),
+                                 tools_enabled=True)
+
+
+def test_respond_never_speaks_error_marker(monkeypatch):
+    import asyncio
+    from jarvis.llm.client import StreamEvent
+    from jarvis.orchestrator import LLM_FAIL_LINE
+
+    class BadLLM:
+        async def stream(self, messages, tools=None, client=None):
+            yield StreamEvent("text", text="[PARSING ERROR]")
+            yield StreamEvent("done", finish_reason="stop")
+
+    spoken: list = []
+    o = _stub_audio(monkeypatch, spoken)
+    o.llm = BadLLM()
+    m = asyncio.run(o.respond("Buka berita US."))
+    assert all("PARSING" not in s for s in spoken), spoken
+    assert m.answer != "[PARSING ERROR]"
+    assert m.answer == LLM_FAIL_LINE
+
+
+def test_respond_speaks_fail_line_when_llm_raises(monkeypatch):
+    import asyncio
+    from jarvis.orchestrator import LLM_FAIL_LINE
+
+    class DeadLLM:
+        async def stream(self, messages, tools=None, client=None):
+            raise RuntimeError("LLM 429: rate limited")
+            yield  # pragma: no cover
+
+    spoken: list = []
+    o = _stub_audio(monkeypatch, spoken)
+    o.llm = DeadLLM()
+    m = asyncio.run(o.respond("Berapa IHSG?"))
+    assert LLM_FAIL_LINE in spoken, spoken
+    assert "429" not in " ".join(spoken)
