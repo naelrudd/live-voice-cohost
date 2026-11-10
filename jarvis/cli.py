@@ -39,11 +39,55 @@ def cmd_setup(args: argparse.Namespace) -> int:
     return 0
 
 
+def _open_control_browser(url: str = "http://127.0.0.1:8848/control") -> bool:
+    """Buka control panel di browser yang sedang berjalan.
+
+    Mencoba via kimi-webbridge (daemon di 127.0.0.1:10086) agar terbuka di
+    tab browser pengguna yang aktif. Jika daemon tidak aktif / gagal, fallback
+    ke `webbrowser.open` standar OS.
+    """
+    import json
+    import urllib.error
+    import urllib.request
+    import webbrowser
+
+    payload = json.dumps({
+        "action": "navigate",
+        "args": {
+            "url": url,
+            "newTab": True,
+            "group_title": "Jarvis control",
+        },
+        "session": "jarvis-control",
+    }).encode("utf-8")
+
+    req = urllib.request.Request(
+        "http://127.0.0.1:10086/command",
+        data=payload,
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=1.5) as resp:
+            data = json.loads(resp.read().decode("utf-8", errors="replace"))
+            if data.get("ok"):
+                print("[start] Control panel dibuka di browser aktif via webbridge.")
+                return True
+    except Exception:
+        pass
+
+    try:
+        webbrowser.open(url)
+        print("[start] Control panel dibuka via browser default OS.")
+        return True
+    except Exception as exc:
+        print(f"[start] Gagal membuka browser ({exc}). Buka manual: {url}")
+        return False
+
+
 def cmd_start(args: argparse.Namespace) -> int:
     if args.browser:
-        import webbrowser
-
-        webbrowser.open("http://127.0.0.1:8848/control")
+        _open_control_browser("http://127.0.0.1:8848/control")
     os.environ.setdefault("PYTHONUNBUFFERED", "1")
     python = sys.executable
     # exec so Ctrl+C and the TTS/STT signal handlers own the terminal cleanly
@@ -140,7 +184,19 @@ def build_parser() -> argparse.ArgumentParser:
     p_setup.set_defaults(func=cmd_setup)
 
     p_start = sub.add_parser("start", help="Nyalakan engine voice co-host")
-    p_start.add_argument("--browser", action="store_true", help="Buka /control di browser")
+    p_start.add_argument(
+        "--browser",
+        dest="browser",
+        action="store_true",
+        default=True,
+        help="Buka /control di browser aktif (default: aktif)",
+    )
+    p_start.add_argument(
+        "--no-browser",
+        dest="browser",
+        action="store_false",
+        help="Jangan buka browser otomatis",
+    )
     p_start.set_defaults(func=cmd_start)
 
     p_stop = sub.add_parser("stop", help="Hentikan engine")

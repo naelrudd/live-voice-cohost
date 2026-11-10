@@ -2,7 +2,7 @@
 title Jarvis-Finance
 cd /d "%~dp0"
 
-echo [Jarvis] Menyalakan engine...
-start "" "http://127.0.0.1:8848/control"
-".venv\Scripts\python.exe" -m jarvis.main
+echo [Jarvis] Menyalakan engine via CLI...
+rem cohost start otomatis buka browser via kimi-webbridge (jika aktif) / default browser
+"%~dp0cohost.bat" start
 pause
