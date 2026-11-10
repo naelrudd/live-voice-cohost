@@ -14,6 +14,7 @@ from __future__ import annotations
 import argparse
 import os
 import sys
+import threading
 import urllib.error
 import urllib.request
 from pathlib import Path
@@ -247,6 +248,29 @@ def run_cli() -> None:
         "JARVIS_OUTPUT_DEVICE": out_dev,
     }
     save_env(updates)
+
+    # 5. Browser Bridge (kimi-webbridge)
+    print("\n5. Browser Bridge (buka /control di browser yang sedang jalan):")
+    from . import webbridge
+
+    print("   Mengecek status bridge...", end=" ", flush=True)
+    state, st = webbridge.ensure(auto_start=True)
+    print(webbridge.describe(st))
+
+    if state in (webbridge.NOT_INSTALLED, webbridge.FAILED):
+        ans = prompt("   Pasang kimi-webbridge sekarang? (y/N): ").strip().lower()
+        if ans == "y":
+            print("   Memasang... (butuh ekstensi browser di https://www.kimi.com/features/webbridge)")
+            if webbridge.install():
+                print("   ✓ Installer selesai. Menyalakan daemon...")
+                state, st = webbridge.ensure(auto_start=True)
+                print(f"   {webbridge.describe(st)}")
+            else:
+                print("   ! Gagal install. Bisa dijalankan manual nanti: cohost webbridge --install")
+
+    elif state == webbridge.NO_EXTENSION:
+        print("   ! Ekstensi browser belum tersambung. Pasang dari: https://www.kimi.com/features/webbridge")
+
     print("\n" + "=" * 64)
     print(f"  ✓ Konfigurasi disimpan ke {ENV_PATH.name}")
     print("  Jalankan `start.bat` untuk menyalakan voice co-host!")
@@ -265,7 +289,7 @@ def run_gui() -> None:
 
     root = tk.Tk()
     root.title("Setup — live-voice-cohost")
-    root.geometry("640x720")
+    root.geometry("680x820")
     root.resizable(False, False)
 
     # Style
@@ -358,6 +382,53 @@ def run_gui() -> None:
     out_combo = ttk.Combobox(f4, textvariable=out_var, values=out_opts, width=38)
     out_combo.grid(row=1, column=1, padx=6, pady=2, sticky="ew")
 
+    # 5. Browser Bridge (kimi-webbridge)
+    from . import webbridge
+
+    f5 = ttk.LabelFrame(body, text=" 5. Browser Bridge (kimi-webbridge) ", padding=8)
+    f5.pack(fill="x", **padding)
+
+    wb_status = tk.StringVar(value="Belum dicek — klik 'Cek / Pasang Bridge'")
+    tk.Label(f5, textvariable=wb_status, font=("Segoe UI", 8), fg="#374151",
+             wraplength=560, justify="left", anchor="w").grid(row=0, column=0, columnspan=2, sticky="ew")
+    tk.Label(f5, text="Buka tab /control di browser yang sedang jalan. Perlu ekstensi: kimi.com/features/webbridge",
+             font=("Segoe UI", 8), fg="#6B7280", wraplength=560, justify="left", anchor="w").grid(
+        row=1, column=0, columnspan=2, sticky="ew")
+
+    def _wb_show(state, st):
+        wb_status.set(webbridge.describe(st))
+
+    def _wb_install_flow():
+        wb_status.set("Memasang kimi-webbridge (installer resmi)...")
+
+        def w2():
+            ok = webbridge.install()
+            if ok:
+                state2, st2 = webbridge.ensure(auto_start=True)
+                root.after(0, lambda: _wb_show(state2, st2))
+            else:
+                root.after(0, lambda: wb_status.set(
+                    "Install gagal. Jalankan manual: cohost webbridge --install"))
+
+        threading.Thread(target=w2, daemon=True).start()
+
+    def do_bridge(ask_install=True):
+        wb_status.set("Mengecek bridge...")
+
+        def work():
+            state, st = webbridge.ensure(auto_start=True)
+            root.after(0, lambda: _wb_show(state, st))
+            if ask_install and state in (webbridge.NOT_INSTALLED, webbridge.FAILED):
+                root.after(0, lambda: messagebox.askyesno(
+                    "kimi-webbridge belum terpasang",
+                    "kimi-webbridge tidak ditemukan.\nPasang sekarang via installer resmi?")
+                    and _wb_install_flow())
+
+        threading.Thread(target=work, daemon=True).start()
+
+    tk.Button(f5, text="🔌 Cek / Pasang Bridge", command=lambda: do_bridge(True),
+              padx=8, pady=3).grid(row=2, column=0, sticky="w", pady=4)
+
     # Action buttons
     btn_frame = tk.Frame(root, pady=12)
     btn_frame.pack(fill="x", padx=16)
@@ -370,7 +441,11 @@ def run_gui() -> None:
         gk = groq_key_var.get().strip()
         ok_groq, msg_groq = test_groq_key(gk) if gk else (True, "STT: Local fallback / text mode")
 
-        status = f"LLM: {msg_llm}\nSTT: {msg_groq}"
+        wb_state, wb_st = webbridge.ensure(auto_start=False)
+        msg_bridge = f"Bridge: {webbridge.describe(wb_st)}"
+        root.after(0, lambda: _wb_show(wb_state, wb_st))
+
+        status = f"LLM: {msg_llm}\nSTT: {msg_groq}\n{msg_bridge}"
         if ok_llm:
             messagebox.showinfo("Hasil Uji Koneksi", status)
         else:
