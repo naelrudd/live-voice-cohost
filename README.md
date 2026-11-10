@@ -68,9 +68,20 @@ cohost start                  # atau cohost.bat start / start.bat
 cohost setup                  # wizard konfigurasi interaktif (terminal)
 cohost setup --gui            # wizard versi window
 cohost start                  # nyalakan engine (buka /control otomatis)
+cohost start --no-browser     # nyalakan tanpa buka tab
 cohost stop                   # matikan engine
-cohost doctor                 # cek mic, key, endpoint
+cohost doctor                 # cek mic, key, endpoint, browser bridge
+cohost webbridge              # deteksi & nyalakan kimi-webbridge
+cohost webbridge --install    # pasang kimi-webbridge (installer resmi)
 ```
+
+**Buka control panel di browser yang sedang jalan.** `cohost start` mendeteksi
+[kimi-webbridge](https://www.kimi.com/features/webbridge) di `127.0.0.1:10086`:
+
+1. bridge aktif + ekstensi tersambung → tab `/control` dibuka di browser yang sudah terbuka;
+2. daemon mati tapi biner ada → dinyalakan otomatis (di Windows lewat WSL);
+3. belum terpasang → `cohost webbridge --install`;
+4. apa pun gagalnya → fallback ke browser default OS, start tetap jalan.
 
 **Manual (uv / pip):**
 

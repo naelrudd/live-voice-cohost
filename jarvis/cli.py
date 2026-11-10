@@ -42,39 +42,40 @@ def cmd_setup(args: argparse.Namespace) -> int:
 def _open_control_browser(url: str = "http://127.0.0.1:8848/control") -> bool:
     """Buka control panel di browser yang sedang berjalan.
 
-    Mencoba via kimi-webbridge (daemon di 127.0.0.1:10086) agar terbuka di
-    tab browser pengguna yang aktif. Jika daemon tidak aktif / gagal, fallback
-    ke `webbrowser.open` standar OS.
+    Alur: deteksi kimi-webbridge -> nyalakan daemon bila mati -> buka tab baru
+    di browser pengguna. Jika bridge tidak ada / gagal, fallback ke
+    `webbrowser.open` standar OS supaya `cohost start` tidak pernah buntu.
     """
-    import json
-    import urllib.error
-    import urllib.request
     import webbrowser
 
-    payload = json.dumps({
-        "action": "navigate",
-        "args": {
-            "url": url,
-            "newTab": True,
-            "group_title": "Jarvis control",
-        },
-        "session": "jarvis-control",
-    }).encode("utf-8")
+    from . import webbridge
 
-    req = urllib.request.Request(
-        "http://127.0.0.1:10086/command",
-        data=payload,
-        headers={"Content-Type": "application/json"},
-        method="POST",
-    )
-    try:
-        with urllib.request.urlopen(req, timeout=1.5) as resp:
-            data = json.loads(resp.read().decode("utf-8", errors="replace"))
-            if data.get("ok"):
-                print("[start] Control panel dibuka di browser aktif via webbridge.")
-                return True
-    except Exception:
-        pass
+    state, st = webbridge.ensure()
+
+    if state == webbridge.READY:
+        if webbridge.navigate(url):
+            print("[start] Control panel dibuka di browser aktif via webbridge.")
+            return True
+        print("[start] Webbridge aktif tapi navigate gagal; pakai browser default.")
+
+    elif state == webbridge.NO_EXTENSION:
+        print(
+            "[start] kimi-webbridge daemon jalan, ekstensi browser belum tersambung.\n"
+            f"        Buka browser sekali, lalu ulangi. Ekstensi: {webbridge.EXTENSION_URL}"
+        )
+
+    elif state == webbridge.NOT_INSTALLED:
+        print(
+            "[start] kimi-webbridge belum terpasang — tab tidak bisa dibuka di browser\n"
+            "        yang sedang jalan. Pasang dengan: cohost webbridge --install\n"
+            f"        (atau ekstensi manual: {webbridge.EXTENSION_URL})"
+        )
+
+    elif state == webbridge.FAILED:
+        print(
+            "[start] kimi-webbridge terpasang tapi daemon gagal dinyalakan.\n"
+            "        Cek: cohost webbridge --status"
+        )
 
     try:
         webbrowser.open(url)
@@ -86,13 +87,32 @@ def _open_control_browser(url: str = "http://127.0.0.1:8848/control") -> bool:
 
 
 def cmd_start(args: argparse.Namespace) -> int:
-    if args.browser:
-        _open_control_browser("http://127.0.0.1:8848/control")
+    """Nyalakan engine, lalu buka /control setelah port benar-benar siap."""
+    import subprocess
+
+    from . import webbridge
+
     os.environ.setdefault("PYTHONUNBUFFERED", "1")
     python = sys.executable
-    # exec so Ctrl+C and the TTS/STT signal handlers own the terminal cleanly
-    os.execvp(python, [python, "-m", "jarvis.main"])
-    return 0  # unreachable
+    url = f"http://127.0.0.1:{args.port}/control"
+
+    proc = subprocess.Popen([python, "-m", "jarvis.main"])
+    try:
+        if args.browser:
+            if webbridge.wait_for_port(args.port, timeout=args.wait):
+                _open_control_browser(url)
+            else:
+                print(f"[start] Engine belum siap setelah {args.wait:.0f}s; membuka tab tetap.")
+                _open_control_browser(url)
+        return proc.wait()
+    except KeyboardInterrupt:
+        print("\n[start] Berhenti.")
+        proc.terminate()
+        try:
+            proc.wait(timeout=10)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+        return 0
 
 
 def cmd_stop(args: argparse.Namespace) -> int:
@@ -124,6 +144,39 @@ def cmd_stop(args: argparse.Namespace) -> int:
     return 1
 
 
+def cmd_webbridge(args: argparse.Namespace) -> int:
+    """Deteksi / nyalakan / pasang kimi-webbridge (browser bridge)."""
+    from . import webbridge
+
+    _print_banner()
+    state, st = webbridge.ensure(auto_start=False)
+    print(f"  Status : {webbridge.describe(st)}")
+
+    if args.install:
+        print("  Install: menjalankan installer resmi…")
+        if not webbridge.install(args.distro):
+            return 1
+        state, st = webbridge.ensure(auto_start=True)
+        print(f"  Sesudah install: {webbridge.describe(st)}")
+        return 0
+
+    if args.start or state in (webbridge.NOT_RUNNING, webbridge.FAILED):
+        print("  Menyalakan daemon…")
+        st = webbridge.start()
+        if st:
+            state, st = webbridge.ensure(auto_start=False)
+        print(f"  Status : {webbridge.describe(st)}")
+
+    if args.status:
+        if st:
+            for key in ("running", "port", "version", "extension_connected", "extension_id"):
+                print(f"    {key}: {st.get(key)}")
+        else:
+            print("    (daemon tidak menjawab /status)")
+
+    return 0 if webbridge.is_ready(st) else 0
+
+
 def cmd_doctor(args: argparse.Namespace) -> int:
     from .setup import (
         load_current_env,
@@ -131,6 +184,7 @@ def cmd_doctor(args: argparse.Namespace) -> int:
         test_groq_key,
         test_llm_connection,
     )
+    from . import webbridge
 
     _print_banner()
     print("  Doctor — cek kesiapan sistem\n")
@@ -168,6 +222,9 @@ def cmd_doctor(args: argparse.Namespace) -> int:
     tavily = env.get("TAVILY_API_KEY", "")
     print(f"  Tavily key: {'ada (web search aktif)' if tavily else 'kosong (web_search mati)'}")
 
+    st = webbridge.status()
+    print(f"  Webbridge : {webbridge.describe(st)}")
+
     print("\n  Jalankan `cohost setup` untuk konfigurasi, atau `cohost start` untuk mulai.")
     return 0
 
@@ -197,11 +254,30 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_false",
         help="Jangan buka browser otomatis",
     )
+    p_start.add_argument(
+        "--port",
+        type=int,
+        default=8848,
+        help="Port web engine (default 8848)",
+    )
+    p_start.add_argument(
+        "--wait",
+        type=float,
+        default=25.0,
+        help="Max detik tunggu engine siap sebelum paksa buka browser (default 25)",
+    )
     p_start.set_defaults(func=cmd_start)
 
     p_stop = sub.add_parser("stop", help="Hentikan engine")
     p_stop.add_argument("--port", type=int, default=8848, help="Port web engine (default 8848)")
     p_stop.set_defaults(func=cmd_stop)
+
+    p_web = sub.add_parser("webbridge", help="Deteksi / nyalakan / pasang kimi-webbridge")
+    p_web.add_argument("--status", action="store_true", help="Tampilkan detail /status")
+    p_web.add_argument("--start", action="store_true", help="Nyalakan daemon (idempotent)")
+    p_web.add_argument("--install", action="store_true", help="Jalankan installer resmi (via WSL di Windows)")
+    p_web.add_argument("--distro", help="Nama distro WSL untuk --install (default: otomatis)")
+    p_web.set_defaults(func=cmd_webbridge)
 
     p_doc = sub.add_parser("doctor", help="Cek devices + key + endpoint")
     p_doc.set_defaults(func=cmd_doctor)

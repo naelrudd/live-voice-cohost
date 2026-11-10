@@ -174,3 +174,90 @@ def test_tool_schemas_are_read_only():
     names = {s["function"]["name"] for s in tool_schemas(True)}
     assert names == {"get_price", "web_search", "open_chart", "open_url", "open_app"}
     assert tool_schemas(False) == []
+
+
+# ---------------------------------------------------------------- webbridge
+
+from jarvis import webbridge  # noqa: E402
+
+
+def test_webbridge_status_none_when_daemon_absent(monkeypatch):
+    monkeypatch.setattr(webbridge, "STATUS_URL", "http://127.0.0.1:1/status")
+    assert webbridge.status(timeout=0.4) is None
+    assert webbridge.is_ready() is False
+
+
+def test_webbridge_ensure_reports_not_installed(monkeypatch):
+    monkeypatch.setattr(webbridge, "STATUS_URL", "http://127.0.0.1:1/status")
+    monkeypatch.setattr(webbridge, "binary_path", lambda: None)
+    monkeypatch.setattr(webbridge, "_start_commands", lambda: [])
+    state, st = webbridge.ensure()
+    assert state == webbridge.NOT_INSTALLED and st is None
+
+
+def test_webbridge_ensure_starts_daemon_when_stopped(monkeypatch):
+    # daemon down, binary present -> ensure() must attempt a start, no install
+    monkeypatch.setattr(webbridge, "STATUS_URL", "http://127.0.0.1:1/status")
+    monkeypatch.setattr(webbridge, "binary_path", lambda: __import__("pathlib").Path("/fake/kimi-webbridge"))
+    calls = []
+    monkeypatch.setattr(webbridge, "start", lambda wait_s=20.0: calls.append(wait_s) or None)
+    state, _ = webbridge.ensure()
+    assert calls and state == webbridge.FAILED
+
+
+def test_webbridge_ensure_skips_start_when_asked(monkeypatch):
+    monkeypatch.setattr(webbridge, "STATUS_URL", "http://127.0.0.1:1/status")
+    monkeypatch.setattr(webbridge, "binary_path", lambda: __import__("pathlib").Path("/fake/x"))
+    called = []
+    monkeypatch.setattr(webbridge, "start", lambda wait_s=20.0: called.append(1))
+    state, _ = webbridge.ensure(auto_start=False)
+    assert state == webbridge.NOT_RUNNING and not called
+
+
+def test_webbridge_navigate_false_when_unreachable(monkeypatch):
+    monkeypatch.setattr(webbridge, "COMMAND_URL", "http://127.0.0.1:1/command")
+    assert webbridge.navigate("http://127.0.0.1:8848/control") is False
+
+
+def test_webbridge_install_runs_upstream_script(monkeypatch):
+    seen = {}
+
+    def fake_run(cmd, **kw):
+        seen["cmd"] = cmd
+        class R:
+            returncode = 0
+        return R()
+
+    monkeypatch.setattr(webbridge.sys, "platform", "linux")
+    monkeypatch.setattr(webbridge.shutil, "which", lambda name: "/usr/bin/bash" if name == "bash" else None)
+    monkeypatch.setattr(webbridge.subprocess, "run", fake_run)
+    assert webbridge.install() is True
+    assert "install.sh" in seen["cmd"][-1] and "curl -fsSL" in seen["cmd"][-1]
+
+
+def test_webbridge_install_uses_wsl_on_windows(monkeypatch):
+    seen = {}
+
+    def fake_run(cmd, **kw):
+        seen["cmd"] = cmd
+        class R:
+            returncode = 0
+        return R()
+
+    monkeypatch.setattr(webbridge.sys, "platform", "win32")
+    monkeypatch.setattr(webbridge, "_wsl_distros", lambda: ["Debian"])
+    monkeypatch.setattr(webbridge.subprocess, "run", fake_run)
+    assert webbridge.install() is True
+    assert seen["cmd"][:4] == ["wsl.exe", "-d", "Debian", "--"]
+
+
+def test_webbridge_describe_covers_states(monkeypatch):
+    monkeypatch.setattr(webbridge, "status", lambda timeout=1.5: None)
+    monkeypatch.setattr(webbridge, "binary_path", lambda: None)
+    assert "tidak terpasang" in webbridge.describe(None)
+    monkeypatch.setattr(webbridge, "binary_path", lambda: __import__("pathlib").Path("/fake/x"))
+    assert "daemon mati" in webbridge.describe(None)
+    assert "ekstensi browser belum tersambung" in webbridge.describe(
+        {"running": True, "extension_connected": False})
+    assert "browser yang sedang jalan" in webbridge.describe(
+        {"running": True, "extension_connected": True, "version": "v9"})
