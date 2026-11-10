@@ -261,3 +261,28 @@ def test_webbridge_describe_covers_states(monkeypatch):
         {"running": True, "extension_connected": False})
     assert "browser yang sedang jalan" in webbridge.describe(
         {"running": True, "extension_connected": True, "version": "v9"})
+
+
+# ------------------------------------------------------- setup wizard: bridge
+
+def test_setup_cli_wizard_checks_webbridge(monkeypatch):
+    from jarvis import setup as setup_mod
+    from jarvis import webbridge
+
+    monkeypatch.setattr(setup_mod, "load_current_env", lambda: {})
+    monkeypatch.setattr(setup_mod, "list_audio_devices", lambda: ([], []))
+    monkeypatch.setattr(setup_mod, "save_env", lambda values: None)
+    monkeypatch.setattr(setup_mod, "test_llm_connection", lambda b, k: (True, "ok"))
+    monkeypatch.setattr(setup_mod, "test_groq_key", lambda k: (True, "ok"))
+    monkeypatch.setattr(setup_mod, "prompt", lambda msg: "")
+
+    seen = []
+    st = {"running": True, "extension_connected": True, "version": "v2.0.22"}
+
+    def fake_ensure(auto_start=True):
+        seen.append(auto_start)
+        return webbridge.READY, st
+
+    monkeypatch.setattr(webbridge, "ensure", fake_ensure)
+    setup_mod.run_cli()
+    assert seen == [True], "wizard must probe/start the bridge exactly once"

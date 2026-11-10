@@ -75,12 +75,12 @@ cohost webbridge              # deteksi & nyalakan kimi-webbridge
 cohost webbridge --install    # pasang kimi-webbridge (installer resmi)
 ```
 
-**Buka control panel di browser yang sedang jalan.** `cohost start` mendeteksi
-[kimi-webbridge](https://www.kimi.com/features/webbridge) di `127.0.0.1:10086`:
+**Buka control panel di browser yang sedang jalan.** `cohost setup` (step 5) dan
+`cohost start` mendeteksi [kimi-webbridge](https://www.kimi.com/features/webbridge) di `127.0.0.1:10086`:
 
 1. bridge aktif + ekstensi tersambung → tab `/control` dibuka di browser yang sudah terbuka;
 2. daemon mati tapi biner ada → dinyalakan otomatis (di Windows lewat WSL);
-3. belum terpasang → `cohost webbridge --install`;
+3. belum terpasang → wizard menawarkan pasang langsung; CLI: `cohost webbridge --install`;
 4. apa pun gagalnya → fallback ke browser default OS, start tetap jalan.
 
 **Manual (uv / pip):**
